@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, Type, input, computed, effect } from '@angular/core'
+import { Component, ChangeDetectionStrategy, Type, input, computed } from '@angular/core'
 import type { ParserOptions } from 'comark'
 import { Markdown } from './components/markdown.component'
 import { MarkdownDocument } from './components/markdown-document.component'
@@ -69,21 +69,32 @@ export function defineMarkdownComponent(config: DefineMarkdownComponentOptions =
       return configClass || ''
     }
 
-    private readonly configEffect = effect(() => {
-      if(!this.options() || Object.keys(this.options()).length === 0) {
-        this.options.set(parseOptions)
-      } else {
-        this.options.set({ ...parseOptions, ...this.options() })
-      }
+    /**
+     * Effective plugins: config-level plugins first, then instance plugins,
+     * deduplicated by plugin name so a plugin supplied by both runs once.
+     */
+    private readonly effectivePlugins = computed<ParserOptions['plugins']>(() => {
+      const names = new Set<string>()
+      return [...configPlugins, ...(this.plugins() ?? [])].filter((plugin) => {
+        if (names.has(plugin.name)) return false
+        names.add(plugin.name)
+        return true
+      })
     })
 
-    private readonly pluginsEffect = effect(() => {
-      if(!this.plugins() || this.plugins()?.length === 0) {
-        this.plugins.set([...configPlugins])
-      } else {
-        this.plugins.set([...configPlugins, ...this.plugins()!])
+    /**
+     * Merge config-level parse options under the instance `options` input so
+     * instance values override config defaults, without writing back to the
+     * input signal (the parser consumes the derived value instead).
+     */
+    protected override getParserOptions(): ParserOptions {
+      return {
+        ...parseOptions,
+        ...this.options(),
+        ...(this.unwrap() ? { unwrap: this.unwrap() } : {}),
+        plugins: this.effectivePlugins(),
       }
-    })
+    }
   }
 
   return DefinedMarkdownComponent as any

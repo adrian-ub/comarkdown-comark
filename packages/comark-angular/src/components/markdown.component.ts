@@ -77,12 +77,22 @@ export class Markdown {
 
   private cdr = inject(ChangeDetectorRef)
 
-  private readonly serializedParseEffect = effect(() => {
-    this.serializedParse = createSerializedMarkdownParser({
+  /**
+   * Compose the parse options consumed by the serialized parser.
+   *
+   * Subclasses (e.g. `defineMarkdownComponent`) override this to merge
+   * config-level defaults without mutating the `options`/`plugins` inputs.
+   */
+  protected getParserOptions(): ParserOptions {
+    return {
       ...this.options(),
       ...(this.unwrap() ? { unwrap: this.unwrap() } : {}),
       plugins: this.plugins(),
-    })
+    }
+  }
+
+  private readonly serializedParseEffect = effect(() => {
+    this.serializedParse = createSerializedMarkdownParser(this.getParserOptions())
   });
 
   private readonly parseMarkdownEffect = effect(() => {
