@@ -1,7 +1,7 @@
-import { Component, Input, ChangeDetectionStrategy, Type } from '@angular/core'
+import { Component, ChangeDetectionStrategy, Type, input, computed, effect } from '@angular/core'
 import type { ParserOptions } from 'comark'
-import { Markdown } from './components/markdown.component.ts'
-import { MarkdownDocument } from './components/markdown-document.component.ts'
+import { Markdown } from './components/markdown.component'
+import { MarkdownDocument } from './components/markdown-document.component'
 
 export interface DefineMarkdownComponentOptions extends ParserOptions {
   /** Pre-configured component mappings. */
@@ -47,10 +47,10 @@ export function defineMarkdownComponent(config: DefineMarkdownComponentOptions =
       @if (document) {
         <comark-markdown-document
           [value]="document"
-          [components]="mergedComponents"
-          [streaming]="streaming"
-          [caret]="caret"
-          [data]="data"
+          [components]="mergedComponents()"
+          [streaming]="streaming()"
+          [caret]="caret()"
+          [data]="data()"
         />
       }
     `,
@@ -60,32 +60,30 @@ export function defineMarkdownComponent(config: DefineMarkdownComponentOptions =
   })
   class DefinedMarkdownComponent extends Markdown {
     /** Instance-level components that are merged with config-level components. */
-    @Input() override components: Record<string, Type<any>> = {}
+    // @Input() override components: Record<string, Type<any>> = {}
+    override readonly components = input<Record<string, Type<any>>>({})
 
-    get mergedComponents(): Record<string, Type<any>> {
-      return { ...configComponents, ...this.components }
-    }
+    protected readonly mergedComponents = computed(() => ({ ...configComponents, ...this.components() }))
 
     get hostClass(): string {
       return configClass || ''
     }
 
-    override ngOnChanges(changes: any): void {
-      // Merge config-level options and plugins with instance-level ones
-      if (!this.options || Object.keys(this.options).length === 0) {
-        this.options = { ...parseOptions }
+    private readonly configEffect = effect(() => {
+      if(!this.options() || Object.keys(this.options()).length === 0) {
+        this.options.set(parseOptions)
       } else {
-        this.options = { ...parseOptions, ...this.options }
+        this.options.set({ ...parseOptions, ...this.options() })
       }
+    })
 
-      if (!this.plugins || this.plugins.length === 0) {
-        this.plugins = [...configPlugins]
+    private readonly pluginsEffect = effect(() => {
+      if(!this.plugins() || this.plugins()?.length === 0) {
+        this.plugins.set([...configPlugins])
       } else {
-        this.plugins = [...configPlugins, ...this.plugins]
+        this.plugins.set([...configPlugins, ...this.plugins()!])
       }
-
-      super.ngOnChanges(changes)
-    }
+    })
   }
 
   return DefinedMarkdownComponent as any
@@ -114,11 +112,11 @@ export function defineMarkdownDocumentComponent(config: DefineMarkdownDocumentOp
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
       <comark-markdown-document
-        [value]="value"
-        [components]="mergedComponents"
-        [streaming]="streaming"
-        [caret]="caret"
-        [data]="data"
+        [value]="value()"
+        [components]="mergedComponents()"
+        [streaming]="streaming()"
+        [caret]="caret()"
+        [data]="data()"
       />
     `,
     host: {
@@ -127,11 +125,9 @@ export function defineMarkdownDocumentComponent(config: DefineMarkdownDocumentOp
   })
   class DefinedMarkdownDocumentComponent extends MarkdownDocument {
     /** Instance-level components that are merged with config-level components. */
-    @Input() override components: Record<string, Type<any>> = {}
+    override readonly components = input<Record<string, Type<any>>>({})
 
-    get mergedComponents(): Record<string, Type<any>> {
-      return { ...configComponents, ...this.components }
-    }
+    protected readonly mergedComponents = computed(() => ({ ...configComponents, ...this.components() }))
 
     get hostClass(): string {
       return configClass || ''
