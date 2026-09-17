@@ -500,8 +500,8 @@ Use `defineMarkdownComponent` or `defineMarkdownDocumentComponent` to create pre
 ```typescript
 // docs-markdown.component.ts
 import { defineMarkdownComponent } from '@comark/angular'
-import math, { Math } from '@comark/angular/plugins/math'
-import mermaid, { Mermaid } from '@comark/angular/plugins/mermaid'
+import { math, Math } from '@comark/angular/plugins/math'
+import { mermaid, Mermaid } from '@comark/angular/plugins/mermaid'
 
 export const DocsMarkdown = defineMarkdownComponent({
   plugins: [math(), mermaid()],
@@ -551,7 +551,7 @@ export const DocsMarkdownDocument = defineMarkdownDocumentComponent({
 ```typescript
 import { Component } from '@angular/core'
 import { Markdown } from '@comark/angular'
-import math, { Math } from '@comark/angular/plugins/math'
+import { math, Math } from '@comark/angular/plugins/math'
 
 @Component({
   selector: 'app-root',
@@ -575,7 +575,7 @@ export class AppComponent {
 ```typescript
 import { Component } from '@angular/core'
 import { Markdown } from '@comark/angular'
-import mermaid, { Mermaid } from '@comark/angular/plugins/mermaid'
+import { mermaid, Mermaid } from '@comark/angular/plugins/mermaid'
 
 @Component({
   selector: 'app-root',
