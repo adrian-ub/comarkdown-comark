@@ -462,7 +462,7 @@ The `data` input allows passing ambient data for `:binding` resolution in markdo
 ```typescript
 import { Component } from '@angular/core'
 import { Markdown } from '@comark/angular'
-import binding, { Binding } from '@comark/angular/plugins/binding'
+import { binding, Binding } from '@comark/angular/plugins/binding'
 
 @Component({
   selector: 'app-root',
@@ -597,7 +597,7 @@ The Mermaid component includes automatic dark mode support: it watches the `<htm
 ### Binding
 
 ```typescript
-import binding, { Binding } from '@comark/angular/plugins/binding'
+import { binding, Binding } from '@comark/angular/plugins/binding'
 
 // See the "Data Binding" section above for full usage.
 ```

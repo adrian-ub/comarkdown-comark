@@ -380,7 +380,7 @@ and AOT consumers.
 
 ```typescript
 import { Markdown, MarkdownDocument, defineMarkdownComponent, defineMarkdownDocumentComponent } from '@comark/angular'
-import math, { Math } from '@comark/angular/plugins/math'
+import { math, Math } from '@comark/angular/plugins/math'
 import mermaid, { Mermaid } from '@comark/angular/plugins/mermaid'
 ```
 
@@ -471,7 +471,7 @@ import binding, { Binding, If } from '@comark/svelte/plugins/binding'
 
 // Angular — renderer + plugin wrappers (plugin fn + Angular component)
 import { Markdown, MarkdownDocument, defineMarkdownComponent, defineMarkdownDocumentComponent } from '@comark/angular'
-import math, { Math } from '@comark/angular/plugins/math'
+import { math, Math } from '@comark/angular/plugins/math'
 import mermaid, { Mermaid } from '@comark/angular/plugins/mermaid'
 import binding, { Binding, If } from '@comark/angular/plugins/binding'
 ```
@@ -727,7 +727,7 @@ export const DocsMarkdown = defineMarkdownComponent({
 
 // Angular
 import { defineMarkdownComponent } from '@comark/angular'
-import math, { Math } from '@comark/angular/plugins/math'
+import { math, Math } from '@comark/angular/plugins/math'
 
 export const DocsMarkdown = defineMarkdownComponent({
   plugins: [math()],
