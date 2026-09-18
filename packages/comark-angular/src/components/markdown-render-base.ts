@@ -72,6 +72,56 @@ function resolveComponent(tag: string, components: Record<string, Type<any>>): T
   return components[proseTag] || components[pascalTag] || components[tag]
 }
 
+/** Angular's catch-all `<ng-content />` selector, as it appears in `ngContentSelectors`. */
+const CATCH_ALL_SELECTOR = '*'
+
+/** `[slot=name]`, `[slot="name"]` and `[slot='name']`. */
+const SLOT_SELECTOR_RE = /^\[slot=(?:"([^"]+)"|'([^']+)'|([^\]]+))\]$/
+
+/**
+ * Extract the slot name from an `<ng-content select="…">` selector.
+ *
+ * Returns `null` for anything that is not a `[slot=…]` attribute selector
+ * (including the catch-all `*`).
+ */
+function slotNameFromSelector(selector: string): string | null {
+  const match = SLOT_SELECTOR_RE.exec(selector.trim())
+  if (!match) return null
+  return match[1] ?? match[2] ?? match[3]
+}
+
+/**
+ * Build the positional `projectableNodes` array for a component.
+ *
+ * Angular resolves dynamic projection purely by **position**: `projectNodes()`
+ * zips `projectableNodes[i]` with `ngContentSelectors[i]` and never inspects the
+ * selector strings. `ComponentMirror.ngContentSelectors` exposes those selectors
+ * in template declaration order, which is exactly the index mapping needed to
+ * place default content in the catch-all and `#name` content in its
+ * `<ng-content select="[slot=name]">`.
+ *
+ * Selectors that are neither `*` nor `[slot=…]` (e.g. `select="div"`) cannot be
+ * satisfied by slot name and are left empty, matching Angular's behaviour of
+ * dropping content that matches no projection slot.
+ */
+function buildProjectableNodes(
+  selectors: readonly string[],
+  defaultNodes: Node[],
+  slotNodes: Map<string, Node>
+): Node[][] {
+  if (selectors.length === 0) return [defaultNodes]
+
+  return selectors.map((selector) => {
+    const slotName = slotNameFromSelector(selector)
+    if (slotName !== null) {
+      const node = slotNodes.get(slotName)
+      return node ? [node] : []
+    }
+    if (selector.trim() === CATCH_ALL_SELECTOR) return [...defaultNodes]
+    return []
+  })
+}
+
 /** Void (self-closing) HTML elements that must not have children. */
 const VOID_ELEMENTS = new Set([
   'area',
@@ -429,10 +479,20 @@ export abstract class MarkdownRenderBase implements OnInit, OnDestroy {
   /**
    * Instantiate a custom component and insert it directly into `appendTo`.
    *
-   * Children are pre-rendered into a detached container and passed as
-   * `projectableNodes`, so they are available to `<ng-content />`. Named slots are
-   * rendered into `slot`-marked containers on the component host. The component
-   * view is attached to the application so it takes part in change detection.
+   * Content projection contract:
+   * - default content (and `#default`) → the component's catch-all `<ng-content />`
+   * - `#name` → `<ng-content select="[slot=name]" />`
+   *
+   * Angular only resolves dynamic projection by **position**: for
+   * `projectableNodes`, `projectNodes()` maps `[i]` to `ngContentSelectors[i]` and
+   * never evaluates the selector strings. So the slot → index mapping is derived
+   * from `ComponentMirror.ngContentSelectors` (template declaration order) rather
+   * than from the `slot` attribute. Content appended to the host after
+   * `createComponent` is never reprojected, which is why the match must be
+   * computed before the view is created.
+   *
+   * The component view is attached to the application so it takes part in change
+   * detection.
    */
   protected renderCustomComponent(
     componentType: Type<any>,
@@ -484,7 +544,7 @@ export abstract class MarkdownRenderBase implements OnInit, OnDestroy {
       this.renderChildren(tempContainer, regularChildren, childrenRenderData, currentNode)
     }
 
-    // Render named slot "default" children too
+    // Render named slot "default" children too — `#default` is the catch-all bucket
     if (slots['default']) {
       this.renderChildren(tempContainer, slots['default'], childrenRenderData, currentNode)
     }
@@ -492,12 +552,28 @@ export abstract class MarkdownRenderBase implements OnInit, OnDestroy {
     // Collect all rendered child nodes for the default slot
     const defaultSlotNodes: Node[] = Array.from(tempContainer.childNodes)
 
-    // Build projectableNodes array - index 0 is the default <ng-content />
-    const projectableNodes: Node[][] = [defaultSlotNodes]
+    // Render every named slot into its own detached `display: contents` wrapper.
+    // The wrapper carries the `slot` attribute so the projected DOM keeps the
+    // author's slot identity; its children are already fully rendered and travel
+    // with it when Angular moves the node into the view.
+    const slotNodes = new Map<string, Node>()
+    for (const slotName in slots) {
+      if (slotName === 'default') continue
+      const slotEl = this.renderer.createElement('div')
+      this.renderer.setAttribute(slotEl, 'slot', slotName)
+      this.renderer.setStyle(slotEl, 'display', 'contents')
+      this.renderChildren(slotEl, slots[slotName], childrenRenderData, currentNode)
+      slotNodes.set(slotName, slotEl)
+    }
 
     const tagName = getTag(currentNode) || componentType.name
 
     try {
+      const mirror = reflectComponentType(componentType)
+
+      // Match Comark slots to <ng-content> slots by Angular's declaration order.
+      const projectableNodes = buildProjectableNodes(mirror?.ngContentSelectors ?? [], defaultSlotNodes, slotNodes)
+
       // Create the Angular component with projected content
       const componentRef = createComponent(componentType, {
         environmentInjector: this.injector.get(EnvironmentInjector),
@@ -506,7 +582,6 @@ export abstract class MarkdownRenderBase implements OnInit, OnDestroy {
       })
 
       // Set inputs
-      const mirror = reflectComponentType(componentType)
       const inputNames = new Set(mirror?.inputs.map((i) => i.propName) || [])
 
       for (const key in attrs) {
@@ -521,18 +596,9 @@ export abstract class MarkdownRenderBase implements OnInit, OnDestroy {
         componentRef.setInput('__node', currentNode)
       }
 
-      // Render non-default named slots into the component's host element
-      for (const slotName in slots) {
-        if (slotName === 'default') continue
-        const slotEl = this.renderer.createElement('div')
-        this.renderer.setAttribute(slotEl, 'slot', slotName)
-        this.renderer.setStyle(slotEl, 'display', 'contents')
-        this.renderChildren(slotEl, slots[slotName], childrenRenderData, currentNode)
-        this.renderer.appendChild(componentRef.location.nativeElement, slotEl)
-      }
-
       // Attach to the application and insert directly into the target element —
-      // no intermediate wrapper element.
+      // no intermediate wrapper element. Slot content is already projected by
+      // `projectableNodes`, so nothing may be appended to the host afterwards.
       this.appRef.attachView(componentRef.hostView)
       this.renderer.appendChild(appendTo, componentRef.location.nativeElement)
       componentRef.changeDetectorRef.detectChanges()
