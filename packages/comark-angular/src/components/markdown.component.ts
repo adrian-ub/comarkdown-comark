@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Type,
+  computed,
   inject,
   input,
   effect,
@@ -11,6 +12,8 @@ import {
 import { createSerializedMarkdownParser } from 'comark'
 import type { ParserOptions, MarkdownDocument as MarkdownDocumentType } from 'comark'
 import { isMarkdownDocument } from 'comark/utils'
+import { MARKDOWN_CONFIG } from '../config'
+import type { MarkdownConfig } from '../config'
 import { MarkdownDocument } from './markdown-document.component'
 
 /**
@@ -27,11 +30,14 @@ import { MarkdownDocument } from './markdown-document.component'
   standalone: true,
   imports: [MarkdownDocument],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class]': 'hostClass',
+  },
   template: `
     @if (document) {
       <comark-markdown-document
         [value]="document"
-        [components]="components()"
+        [components]="mergedComponents()"
         [streaming]="streaming()"
         [caret]="caret()"
         [data]="data()"
@@ -40,6 +46,8 @@ import { MarkdownDocument } from './markdown-document.component'
   `,
 })
 export class Markdown {
+  private readonly config: MarkdownConfig | null = inject(MARKDOWN_CONFIG, { optional: true })
+
   /** The markdown content to parse and render, or a pre-parsed MarkdownDocument */
   readonly value = input<string | MarkdownDocumentType>()
 
@@ -71,6 +79,13 @@ export class Markdown {
   /** Additional data to pass to the renderer for :binding resolution */
   readonly data = input<Record<string, unknown>>({})
 
+  /** Config-level and instance-level components merged, instance wins. */
+  protected readonly mergedComponents = computed(() => ({ ...(this.config?.components ?? {}), ...this.components() }))
+
+  get hostClass(): string {
+    return this.config?.class ?? ''
+  }
+
   document: MarkdownDocumentType | null = null
 
   private serializedParse = createSerializedMarkdownParser({})
@@ -78,22 +93,37 @@ export class Markdown {
   private cdr = inject(ChangeDetectorRef)
 
   /**
+   * Effective plugins: config-level plugins first, then instance plugins,
+   * deduplicated by plugin name so a plugin supplied by both runs once.
+   */
+  private readonly effectivePlugins = computed<ParserOptions['plugins']>(() => {
+    const names = new Set<string>()
+    return [...(this.config?.plugins ?? []), ...(this.plugins() ?? [])].filter((plugin) => {
+      if (names.has(plugin.name)) return false
+      names.add(plugin.name)
+      return true
+    })
+  })
+
+  /**
    * Compose the parse options consumed by the serialized parser.
    *
-   * Subclasses (e.g. `defineMarkdownComponent`) override this to merge
-   * config-level defaults without mutating the `options`/`plugins` inputs.
+   * Config-level defaults are merged under the `options`/`plugins` inputs so
+   * instance values override config defaults, without writing back to the
+   * input signals (the parser consumes the derived value instead).
    */
   protected getParserOptions(): ParserOptions {
     return {
+      ...(this.config?.options ?? {}),
       ...this.options(),
       ...(this.unwrap() ? { unwrap: this.unwrap() } : {}),
-      plugins: this.plugins(),
+      plugins: this.effectivePlugins(),
     }
   }
 
   private readonly serializedParseEffect = effect(() => {
     this.serializedParse = createSerializedMarkdownParser(this.getParserOptions())
-  });
+  })
 
   private readonly parseMarkdownEffect = effect(() => {
     const value = this.value()

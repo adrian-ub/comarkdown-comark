@@ -3,12 +3,15 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Type,
+  computed,
   inject,
   type OnInit,
   type OnDestroy,
   input,
 } from '@angular/core'
 import type { ElementNode, Node, MarkdownDocument as MarkdownDocumentType, NodeRenderData } from 'comark'
+import { MARKDOWN_DOCUMENT_CONFIG } from '../config'
+import type { MarkdownDocumentConfig } from '../config'
 import { MarkdownNode } from './markdown-node.component'
 import { findLastTextNodeAndAppendNode, getCaret } from '../utils/caret'
 
@@ -31,12 +34,15 @@ const EMPTY_DOCUMENT: MarkdownDocumentType = { nodes: [], frontmatter: {}, meta:
   standalone: true,
   imports: [MarkdownNode],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class]': 'hostClass',
+  },
   template: `
     <div class="comark-content">
       @for (node of renderedNodes; track $index) {
         <comark-markdown-node
           [node]="node"
-          [components]="components()"
+          [components]="mergedComponents()"
           [renderData]="renderData"
         />
       }
@@ -44,11 +50,20 @@ const EMPTY_DOCUMENT: MarkdownDocumentType = { nodes: [], frontmatter: {}, meta:
   `,
 })
 export class MarkdownDocument implements OnInit, OnDestroy {
+  private readonly config: MarkdownDocumentConfig | null = inject(MARKDOWN_DOCUMENT_CONFIG, { optional: true })
+
   /** The parsed Markdown document to render */
   readonly value = input<MarkdownDocumentType>()
 
   /** Custom component mappings for element tags */
   readonly components = input<Record<string, Type<any>>>({})
+
+  /** Config-level and instance-level components merged, instance wins. */
+  protected readonly mergedComponents = computed(() => ({ ...(this.config?.components ?? {}), ...this.components() }))
+
+  get hostClass(): string {
+    return this.config?.class ?? ''
+  }
 
   /** Enable streaming mode */
   readonly streaming = input<boolean>(false)

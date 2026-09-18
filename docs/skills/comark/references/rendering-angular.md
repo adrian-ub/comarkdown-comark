@@ -493,36 +493,28 @@ export class AppComponent {
 
 ## Pre-configured Components
 
-Use `defineMarkdownComponent` or `defineMarkdownDocumentComponent` to create pre-configured components with default plugins and component mappings:
+Use `defineMarkdownComponent` or `defineMarkdownDocumentComponent` to pre-configure default plugins, component mappings, and styling. Factory-created component classes are not AOT-compatible in another component's `imports`, so both functions return a config Provider that the static `Markdown`/`MarkdownDocument` components read via `inject`.
 
 ### defineMarkdownComponent
 
 ```typescript
-// docs-markdown.component.ts
-import { defineMarkdownComponent } from '@comark/angular'
+import { Component } from '@angular/core'
+import { Markdown, defineMarkdownComponent } from '@comark/angular'
 import { math, Math } from '@comark/angular/plugins/math'
 import { mermaid, Mermaid } from '@comark/angular/plugins/mermaid'
-
-export const DocsMarkdown = defineMarkdownComponent({
-  plugins: [math(), mermaid()],
-  components: { Math, Mermaid },
-  class: 'prose dark:prose-invert',
-})
-```
-
-Use the pre-configured component:
-
-```typescript
-import { Component } from '@angular/core'
-import { DocsMarkdown } from './docs-markdown.component'
 
 @Component({
   selector: 'app-docs',
   standalone: true,
-  imports: [DocsMarkdown],
-  template: `
-    <docs-markdown [value]="content" />
-  `,
+  imports: [Markdown],
+  providers: [
+    defineMarkdownComponent({
+      plugins: [math(), mermaid()],
+      components: { Math, Mermaid },
+      class: 'prose dark:prose-invert',
+    }),
+  ],
+  template: `<comark-markdown [value]="content" />`,
 })
 export class DocsComponent {
   content = '# Math: $E = mc^2$'
@@ -534,12 +526,22 @@ Instance-level `components` and `plugins` are merged with the config-level defau
 ### defineMarkdownDocumentComponent
 
 ```typescript
-import { defineMarkdownDocumentComponent } from '@comark/angular'
+import { Component } from '@angular/core'
+import { MarkdownDocument, defineMarkdownDocumentComponent } from '@comark/angular'
 import { Math } from '@comark/angular/plugins/math'
 
-export const DocsMarkdownDocument = defineMarkdownDocumentComponent({
-  components: { Math },
+@Component({
+  selector: 'app-docs',
+  standalone: true,
+  imports: [MarkdownDocument],
+  providers: [
+    defineMarkdownDocumentComponent({
+      components: { Math },
+    }),
+  ],
+  template: `<comark-markdown-document [value]="document" />`,
 })
+export class DocsComponent {}
 ```
 
 ---

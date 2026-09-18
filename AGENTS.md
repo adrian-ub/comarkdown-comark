@@ -340,6 +340,7 @@ packages/comark-angular/
 ├── src/
 │   ├── index.ts                          # Entry point
 │   ├── define.ts                         # defineMarkdownComponent / defineMarkdownDocumentComponent
+│   ├── config.ts                         # MARKDOWN_CONFIG / MARKDOWN_DOCUMENT_CONFIG tokens
 │   ├── components/
 │   │   ├── markdown.component.ts         # High-level markdown → render component
 │   │   ├── markdown-parsed.component.ts  # Low-level AST → render component
@@ -737,14 +738,28 @@ export const DocsMarkdown = defineMarkdownComponent({
 })
 
 // Angular
-import { defineMarkdownComponent } from '@comark/angular'
+import { Component } from '@angular/core'
+import { Markdown, defineMarkdownComponent } from '@comark/angular'
 import { math, Math } from '@comark/angular/plugins/math'
 
-export const DocsMarkdown = defineMarkdownComponent({
-  plugins: [math()],
-  components: { Math },
+@Component({
+  selector: 'app-docs',
+  standalone: true,
+  imports: [Markdown],
+  providers: [
+    defineMarkdownComponent({
+      plugins: [math()],
+      components: { Math },
+    }),
+  ],
+  template: `<comark-markdown [value]="content" />`,
 })
+export class DocsComponent {
+  content = '# Hello'
+}
 ```
+
+> **Angular note:** `defineMarkdownComponent`/`defineMarkdownDocumentComponent` return a config **Provider** (for `MARKDOWN_CONFIG`/`MARKDOWN_DOCUMENT_CONFIG`), not a component class. Factory-created component classes are not AOT-compatible in another component's `imports` (ngtsc error -991010); the static `Markdown`/`MarkdownDocument` components read the config via `inject(token, { optional: true })`.
 
 ## Common Tasks
 

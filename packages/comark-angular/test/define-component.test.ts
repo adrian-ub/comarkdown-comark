@@ -1,75 +1,82 @@
 import { describe, expect, it } from 'vitest'
+import type { ValueProvider } from '@angular/core'
 import { defineMarkdownComponent, defineMarkdownDocumentComponent } from '../src/define.ts'
+import { MARKDOWN_CONFIG, MARKDOWN_DOCUMENT_CONFIG } from '../src/config.ts'
 
 describe('defineMarkdownComponent', () => {
-  it('returns a component class', () => {
-    const Defined = defineMarkdownComponent({})
-    expect(Defined).toBeDefined()
-    expect(typeof Defined).toBe('function')
+  it('returns a provider for MARKDOWN_CONFIG', () => {
+    const provider = defineMarkdownComponent({}) as ValueProvider
+    expect(provider).toBeDefined()
+    expect(provider.provide).toBe(MARKDOWN_CONFIG)
+    expect(provider.useValue).toBeDefined()
   })
 
-  it('returns a component class with default config', () => {
-    const Defined = defineMarkdownComponent()
-    expect(Defined).toBeDefined()
-    expect(typeof Defined).toBe('function')
+  it('returns a provider for MARKDOWN_CONFIG with default config', () => {
+    const provider = defineMarkdownComponent() as ValueProvider
+    expect(provider).toBeDefined()
+    expect(provider.provide).toBe(MARKDOWN_CONFIG)
+    expect(provider.useValue).toBeDefined()
   })
 
-  it('accepts plugins in config', () => {
+  it('passes through plugins in useValue', () => {
     const fakePlugin = { name: 'test', setup: () => {} }
-    const Defined = defineMarkdownComponent({
+    const provider = defineMarkdownComponent({
       plugins: [fakePlugin as any],
-    })
-    expect(Defined).toBeDefined()
+    }) as ValueProvider
+    expect(provider.useValue?.plugins).toEqual([fakePlugin])
   })
 
-  it('accepts components in config', () => {
+  it('passes through components in useValue', () => {
     class FakeComponent {}
-    const Defined = defineMarkdownComponent({
+    const provider = defineMarkdownComponent({
       components: { alert: FakeComponent as any },
-    })
-    expect(Defined).toBeDefined()
+    }) as ValueProvider
+    expect(provider.useValue?.components).toEqual({ alert: FakeComponent })
   })
 
-  it('accepts class in config', () => {
-    const Defined = defineMarkdownComponent({
+  it('passes through class in useValue', () => {
+    const provider = defineMarkdownComponent({
       class: 'prose dark:prose-invert',
-    })
-    expect(Defined).toBeDefined()
+    }) as ValueProvider
+    expect(provider.useValue?.class).toBe('prose dark:prose-invert')
   })
 
-  it('accepts parse options in config', () => {
-    const Defined = defineMarkdownComponent({
+  it('passes through parse options in useValue', () => {
+    const provider = defineMarkdownComponent({
       autoClose: true,
       linkify: true,
-    })
-    expect(Defined).toBeDefined()
+    }) as ValueProvider
+    expect(provider.useValue?.options).toEqual({ autoClose: true, linkify: true })
   })
 })
 
 describe('defineMarkdownDocumentComponent', () => {
-  it('returns a component class', () => {
-    const Defined = defineMarkdownDocumentComponent({})
-    expect(Defined).toBeDefined()
-    expect(typeof Defined).toBe('function')
+  it('returns a provider for MARKDOWN_DOCUMENT_CONFIG', () => {
+    const provider = defineMarkdownDocumentComponent({}) as ValueProvider
+    expect(provider).toBeDefined()
+    expect(provider.provide).toBe(MARKDOWN_DOCUMENT_CONFIG)
+    expect(provider.useValue).toBeDefined()
   })
 
-  it('returns a component class with default config', () => {
-    const Defined = defineMarkdownDocumentComponent()
-    expect(Defined).toBeDefined()
+  it('returns a provider for MARKDOWN_DOCUMENT_CONFIG with default config', () => {
+    const provider = defineMarkdownDocumentComponent() as ValueProvider
+    expect(provider).toBeDefined()
+    expect(provider.provide).toBe(MARKDOWN_DOCUMENT_CONFIG)
+    expect(provider.useValue).toBeDefined()
   })
 
-  it('accepts components in config', () => {
+  it('passes through components in useValue', () => {
     class FakeComponent {}
-    const Defined = defineMarkdownDocumentComponent({
+    const provider = defineMarkdownDocumentComponent({
       components: { Math: FakeComponent as any },
-    })
-    expect(Defined).toBeDefined()
+    }) as ValueProvider
+    expect(provider.useValue?.components).toEqual({ Math: FakeComponent })
   })
 
-  it('accepts class in config', () => {
-    const Defined = defineMarkdownDocumentComponent({
+  it('passes through class in useValue', () => {
+    const provider = defineMarkdownDocumentComponent({
       class: 'prose',
-    })
-    expect(Defined).toBeDefined()
+    }) as ValueProvider
+    expect(provider.useValue?.class).toBe('prose')
   })
 })

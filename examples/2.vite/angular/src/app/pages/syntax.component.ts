@@ -1,33 +1,28 @@
 import { Component } from '@angular/core'
-import { Markdown } from '@comark/angular'
+import { Markdown, defineMarkdownComponent } from '@comark/angular'
 import shiki from 'comark/plugins/shiki'
 import alert from 'comark/plugins/alert'
 import { AlertComponent } from '../components/alert.component'
 import { FeatureCardComponent } from '../components/feature-card.component'
 import python from '@shikijs/langs/python'
+import { math, Math } from '@comark/angular/plugins/math'
+import { mermaid, Mermaid } from '@comark/angular/plugins/mermaid'
 
 @Component({
   selector: 'app-syntax',
   standalone: true,
   imports: [Markdown],
-  template: `
-    <comark-markdown
-      [value]="markdown"
-      [plugins]="plugins"
-      [components]="components"
-    />
-  `,
+  providers: [
+    defineMarkdownComponent({
+      plugins: [shiki({ languages: [python] }), alert(), math(), mermaid()],
+      components: { alert: AlertComponent, 'feature-card': FeatureCardComponent, Math, Mermaid },
+      class: 'prose dark:prose-invert',
+    }),
+  ],
+  template: `<comark-markdown [value]="content" />`,
 })
 export class SyntaxComponent {
-  components = { alert: AlertComponent, 'feature-card': FeatureCardComponent }
-  plugins = [
-    shiki({
-      languages: [python],
-    }),
-    alert(),
-  ]
-
-  markdown = `
+  content = `
 # Comark Syntax Showcase
 
 All syntax features supported by Comark, from standard **CommonMark** to Comark-specific extensions.
