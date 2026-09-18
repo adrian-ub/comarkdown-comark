@@ -237,7 +237,7 @@ Footer text
 
 ### Custom Component with Slots
 
-Named slots are rendered into `<div slot="name" style="display: contents">` elements and appended to the component's host element. Use CSS attribute selectors or `@ContentChildren` to target them:
+Each `#name` block is wrapped in a detached `<div slot="name" style="display: contents">` element and fed to the matching `<ng-content select="[slot=name]" />` when the component view is created. Content that appears outside a `#name` block (and any `#default` block) goes to the catch-all `<ng-content />`:
 
 ```typescript
 // card.component.ts
@@ -281,6 +281,12 @@ import { Component, ChangeDetectionStrategy } from '@angular/core'
 })
 export class CardComponent {}
 ```
+
+**Use `<ng-content>`, never `<slot>`.** Angular's projector is `<ng-content>`: a template that declares no `<ng-content>` reports `ngContentSelectors === []` and the renderer has nowhere to put the content, so everything is silently discarded. This also holds with `ViewEncapsulation.ShadowDom` — the shadow root changes where styles live, not how content is projected.
+
+**Slots are matched by name, so `#name` blocks can appear in any order.** Internally the renderer discovers your slots through `reflectComponentType(type).ngContentSelectors` and builds the dynamic projection positionally, in the order the `<ng-content>` elements are declared in the template (the catch-all is reported as `"*"`). A `#name` slot with no matching `<ng-content select>` is dropped, just as Angular drops content with no projection slot.
+
+**Content must be available at creation time.** Angular does not reproject children appended to a component's host after `createComponent`, so the renderer projects slots before the component view is created rather than appending to the host.
 
 ### Nested Slots
 

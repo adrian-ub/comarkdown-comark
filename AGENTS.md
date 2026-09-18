@@ -398,6 +398,40 @@ import { mermaid, Mermaid } from '@comark/angular/plugins/mermaid'
 <comark-markdown [value]="content" [components]="customComponents" />
 ```
 
+### Component slots
+
+Custom components receive content through Angular content projection: the
+default slot via `<ng-content />` and named slots via
+`<ng-content select="[slot=name]" />`. The Comark side of the contract is the
+`#name` block (`#header`, `#default`, `#footer`, ...) inside the component.
+
+**Projection is positional on the engine's side.** The engine reads
+`reflectComponentType(type).ngContentSelectors` — the selectors in template
+declaration order, with the catch-all `<ng-content />` reported as `"*"` — and
+builds `projectableNodes` in that same order before creating the component view.
+Each `#name` slot becomes a detached `div[slot=name]` with `display: contents`,
+which is what the matching `[slot=name]` selector projects. Consequences:
+
+- The mapping from `#name` to `<ng-content>` is **by slot name**, so authors can
+  write `#name` blocks in any order. The engine's job is to keep
+  `projectableNodes[i]` aligned with `ngContentSelectors[i]`, because Angular's
+  dynamic projection zips the two by index and never consults the selector
+  strings. Do not reorder one without the other.
+- Content must be projected at creation time. Appending children to the host
+  after `createComponent` does not reproject them.
+
+A named slot that matches no `<ng-content select>` is dropped (empty nodes),
+matching Angular's own behavior for content with no matching projection slot.
+
+`<slot name>` is **not** an Angular contract: a template with no `<ng-content>`
+reports `ngContentSelectors === []`, so ALL projected content is silently
+discarded. `ViewEncapsulation.ShadowDom` IS compatible with the contract above
+and can be used for style isolation, but beware SSR: the server does not
+serialize the shadow root and flattens the template with emulated-encapsulation
+attributes, so a hydrating consumer sees a different DOM shape. See
+`test/component-slots.test.ts` for the contract and
+`test/native-slot-experiment.test.ts` for these measured behaviors.
+
 ## Package Exports Reference
 
 ```typescript
