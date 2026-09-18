@@ -1,21 +1,8 @@
-import {
-  Component,
-  ChangeDetectionStrategy,
-  ChangeDetectorRef,
-  Type,
-  computed,
-  inject,
-  type OnInit,
-  type OnDestroy,
-  input,
-} from '@angular/core'
-import type { ElementNode, Node, MarkdownDocument as MarkdownDocumentType, NodeRenderData } from 'comark'
+import { Component, ChangeDetectionStrategy, computed, inject, input, type Type } from '@angular/core'
+import type { MarkdownDocument as MarkdownDocumentType } from 'comark'
 import { MARKDOWN_DOCUMENT_CONFIG } from '../config'
 import type { MarkdownDocumentConfig } from '../config'
-import { MarkdownNode } from './markdown-node.component'
-import { findLastTextNodeAndAppendNode, getCaret } from '../utils/caret'
-
-const EMPTY_DOCUMENT: MarkdownDocumentType = { nodes: [], frontmatter: {}, meta: {} }
+import { MarkdownRenderBase } from './markdown-render-base'
 
 /**
  * MarkdownDocument component
@@ -23,6 +10,10 @@ const EMPTY_DOCUMENT: MarkdownDocumentType = { nodes: [], frontmatter: {}, meta:
  * Renders an already-parsed Markdown document to Angular components/HTML — no
  * parser in the client bundle. Supports custom component mapping for
  * element tags.
+ *
+ * The component has no template: the document is rendered directly into its own
+ * host element (which carries `.comark-content`), so there is no wrapper element
+ * between `<comark-markdown-document>` and the markdown it produces.
  *
  * @example
  * ```html
@@ -32,102 +23,31 @@ const EMPTY_DOCUMENT: MarkdownDocumentType = { nodes: [], frontmatter: {}, meta:
 @Component({
   selector: 'comark-markdown-document',
   standalone: true,
-  imports: [MarkdownNode],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  template: '',
   host: {
-    '[class]': 'hostClass',
+    '[class]': 'contentClass',
+    style: 'display: block',
   },
-  template: `
-    <div class="comark-content">
-      @for (node of renderedNodes; track $index) {
-        <comark-markdown-node
-          [node]="node"
-          [components]="mergedComponents()"
-          [renderData]="renderData"
-        />
-      }
-    </div>
-  `,
 })
-export class MarkdownDocument implements OnInit, OnDestroy {
-  private readonly config: MarkdownDocumentConfig | null = inject(MARKDOWN_DOCUMENT_CONFIG, { optional: true })
-
+export class MarkdownDocument extends MarkdownRenderBase {
   /** The parsed Markdown document to render */
   readonly value = input<MarkdownDocumentType>()
 
-  /** Custom component mappings for element tags */
-  readonly components = input<Record<string, Type<any>>>({})
+  private readonly config: MarkdownDocumentConfig | null = inject(MARKDOWN_DOCUMENT_CONFIG, { optional: true })
+
+  protected override get renderDocument(): MarkdownDocumentType | null {
+    return this.value() ?? null
+  }
 
   /** Config-level and instance-level components merged, instance wins. */
-  protected readonly mergedComponents = computed(() => ({ ...(this.config?.components ?? {}), ...this.components() }))
+  private readonly mergedComponents = computed(() => ({ ...(this.config?.components ?? {}), ...this.components() }))
 
-  get hostClass(): string {
-    return this.config?.class ?? ''
+  protected override get componentsMap(): Record<string, Type<any>> {
+    return this.mergedComponents()
   }
 
-  /** Enable streaming mode */
-  readonly streaming = input<boolean>(false)
-
-  /** Append a caret to the last text node (for streaming UIs) */
-  readonly caret = input<boolean | { class: string }>(false)
-
-  /** Additional data to pass to the renderer for :binding resolution */
-  readonly data = input<Record<string, unknown>>({})
-
-  /**
-   * Document key used to subscribe to live updates via `globalThis.comarkContext`.
-   * Falls back to the document's own `meta.key` when set by a plugin.
-   */
-  readonly documentKey = input<string>()
-
-  private cdr = inject(ChangeDetectorRef)
-  private liveDocument: MarkdownDocumentType | null = null
-  private cleanup?: (clear?: boolean) => void
-
-  private get inputDocument(): MarkdownDocumentType {
-    return this.value() ?? EMPTY_DOCUMENT
-  }
-
-  // Live document support: if an ambient context exists, subscribe to updates
-  // for this key and re-render with the pushed document. Cleaned up on destroy.
-  ngOnInit(): void {
-    const key = this.inputDocument.meta?.key || this.documentKey()
-    if (key && globalThis.comarkContext) {
-      this.cleanup = globalThis.comarkContext.get(key, this.inputDocument).listen((document) => {
-        this.liveDocument = document
-        this.cdr.markForCheck()
-      })
-    }
-  }
-
-  ngOnDestroy(): void {
-    this.cleanup?.(true)
-  }
-
-  private get activeDocument(): MarkdownDocumentType {
-    return this.liveDocument ?? this.inputDocument
-  }
-
-  get renderedNodes(): Node[] {
-    const nodes = [...(this.activeDocument.nodes || [])]
-    const caretNode = getCaret(this.caret())
-
-    if (this.streaming() && caretNode && nodes.length > 0) {
-      const hasStreamCaret = findLastTextNodeAndAppendNode(nodes[nodes.length - 1] as ElementNode, caretNode)
-      if (!hasStreamCaret) {
-        nodes.push(caretNode)
-      }
-    }
-
-    return nodes
-  }
-
-  get renderData(): NodeRenderData {
-    return {
-      frontmatter: this.activeDocument.frontmatter,
-      meta: this.activeDocument.meta,
-      data: this.data() || {},
-      props: {},
-    }
+  get contentClass(): string {
+    return ['comark-content', this.config?.class].filter(Boolean).join(' ')
   }
 }

@@ -1,24 +1,28 @@
 import {
   Component,
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
-  Type,
   computed,
   inject,
   input,
   effect,
   model,
+  signal,
+  type Type,
 } from '@angular/core'
 import { createSerializedMarkdownParser } from 'comark'
 import type { ParserOptions, MarkdownDocument as MarkdownDocumentType } from 'comark'
 import { isMarkdownDocument } from 'comark/utils'
 import { MARKDOWN_CONFIG } from '../config'
 import type { MarkdownConfig } from '../config'
-import { MarkdownDocument } from './markdown-document.component'
+import { MarkdownRenderBase } from './markdown-render-base'
 
 /**
  * High-level Markdown component that accepts raw markdown, parses it,
  * and renders the resulting document.
+ *
+ * The component has no template: the markdown is rendered directly into its own
+ * host element (which carries `.comark-content`), so there is no wrapper element
+ * between `<comark-markdown>` and the markdown it produces.
  *
  * @example
  * ```html
@@ -28,24 +32,14 @@ import { MarkdownDocument } from './markdown-document.component'
 @Component({
   selector: 'comark-markdown',
   standalone: true,
-  imports: [MarkdownDocument],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '[class]': 'hostClass',
+    '[class]': 'contentClass',
+    style: 'display: block',
   },
-  template: `
-    @if (document) {
-      <comark-markdown-document
-        [value]="document"
-        [components]="mergedComponents()"
-        [streaming]="streaming()"
-        [caret]="caret()"
-        [data]="data()"
-      />
-    }
-  `,
+  template: '',
 })
-export class Markdown {
+export class Markdown extends MarkdownRenderBase {
   private readonly config: MarkdownConfig | null = inject(MARKDOWN_CONFIG, { optional: true })
 
   /** The markdown content to parse and render, or a pre-parsed MarkdownDocument */
@@ -64,33 +58,42 @@ export class Markdown {
    */
   readonly unwrap = input<boolean | string | string[]>(false)
 
-  /** Custom component mappings for element tags */
-  readonly components = input<Record<string, Type<any>>>({})
-
-  /** Enable streaming mode */
-  readonly streaming = input<boolean>(false)
-
   /** If document has a <!-- more --> comment, only render content before it */
   readonly summary = input<boolean>(false)
 
-  /** Append a caret to the last text node (for streaming UIs) */
-  readonly caret = input<boolean | { class: string }>(false)
+  /**
+   * Signal backing for {@link document}.
+   *
+   * Parsing resolves asynchronously, so the parsed document must be reactive for
+   * the render effect to pick it up; a plain field would only be seen by chance.
+   */
+  private readonly parsedDocument = signal<MarkdownDocumentType | null>(null)
 
-  /** Additional data to pass to the renderer for :binding resolution */
-  readonly data = input<Record<string, unknown>>({})
-
-  /** Config-level and instance-level components merged, instance wins. */
-  protected readonly mergedComponents = computed(() => ({ ...(this.config?.components ?? {}), ...this.components() }))
-
-  get hostClass(): string {
-    return this.config?.class ?? ''
+  /** The parsed document (or the pre-parsed document passed as `value`). */
+  get document(): MarkdownDocumentType | null {
+    return this.parsedDocument()
   }
 
-  document: MarkdownDocumentType | null = null
+  set document(value: MarkdownDocumentType | null) {
+    this.parsedDocument.set(value)
+  }
+
+  protected override get renderDocument(): MarkdownDocumentType | null {
+    return this.parsedDocument()
+  }
+
+  /** Config-level and instance-level components merged, instance wins. */
+  private readonly mergedComponents = computed(() => ({ ...(this.config?.components ?? {}), ...this.components() }))
+
+  protected override get componentsMap(): Record<string, Type<any>> {
+    return this.mergedComponents()
+  }
+
+  get contentClass(): string {
+    return ['comark-content', this.config?.class].filter(Boolean).join(' ')
+  }
 
   private serializedParse = createSerializedMarkdownParser({})
-
-  private cdr = inject(ChangeDetectorRef)
 
   /**
    * Effective plugins: config-level plugins first, then instance plugins,
@@ -139,7 +142,7 @@ export class Markdown {
     // Pre-parsed document — skip parsing and render directly
     if (isMarkdownDocument(this.value())) {
       this.document = this.value() as MarkdownDocumentType
-      this.cdr.markForCheck()
+      this.syncLiveDocument()
       return
     }
 
@@ -151,7 +154,7 @@ export class Markdown {
 
     this.serializedParse(source, { streaming: this.streaming() }).then((result) => {
       this.document = result
-      this.cdr.markForCheck()
+      this.syncLiveDocument()
     })
   }
 }

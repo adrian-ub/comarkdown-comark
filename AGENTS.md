@@ -342,13 +342,10 @@ packages/comark-angular/
 │   ├── define.ts                         # defineMarkdownComponent / defineMarkdownDocumentComponent
 │   ├── config.ts                         # MARKDOWN_CONFIG / MARKDOWN_DOCUMENT_CONFIG tokens
 │   ├── components/
-│   │   ├── markdown.component.ts         # High-level markdown → render component
-│   │   ├── markdown-parsed.component.ts  # Low-level AST → render component
-│   │   ├── markdown-node.component.ts    # Recursive AST node renderer
-│   │   ├── binding.component.ts          # Binding rendering component
-│   │   ├── if.component.ts               # Structural conditional renderer
-│   │   ├── math.component.ts             # Math rendering component
-│   │   └── mermaid.component.ts          # Mermaid rendering component
+│   │   ├── markdown.component.ts         # High-level markdown → render component (empty template, renders into its own host)
+│   │   ├── markdown-document.component.ts # Low-level AST → render component (empty template, renders into its own host)
+│   │   ├── markdown-render-base.ts       # Shared render engine + render inputs, live-doc subscription, memoized nodes/renderData
+│   │   └── (binding/math/mermaid components live under plugins/)
 │   └── utils/
 │       ├── caret.ts                      # Caret utilities for streaming
 │       └── index.ts                      # Re-exports comark/utils
